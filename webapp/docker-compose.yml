@@ -1,0 +1,38 @@
+# Run from the repository root:
+#   docker compose -f webapp/docker-compose.yml up -d
+#
+# Then open http://localhost:8080 and complete the Twitch device-code login.
+# The token is stored in the twitchdropsminer_miner-data volume and reused on
+# every later start, so you only log in once - rebuilds included.
+
+# Pinned so the project (and therefore the volume) keeps the same name no matter
+# which directory compose is invoked from. Without this, compose would name the
+# project after this file's folder ("webapp"), and moving or renaming the folder
+# would silently point the miner at a different, empty volume.
+name: twitchdropsminer
+
+services:
+  twitch-drops-miner:
+    build:
+      # the miner modules live at the repo root, so that is the build context
+      context: ..
+      dockerfile: webapp/Dockerfile
+    image: twitch-drops-miner:web
+    container_name: twitch-drops-miner
+    restart: unless-stopped
+    ports:
+      - "${TDM_PORT:-8080}:8080"
+    volumes:
+      # settings.json, cookies.jar, cache and logs persist here
+      - miner-data:/data
+    environment:
+      # 0-4; raise for more detail in the Console tab
+      TDM_VERBOSE: "${TDM_VERBOSE:-0}"
+      TDM_LOG: "1"
+      TZ: "${TZ:-UTC}"
+    stop_grace_period: 30s
+
+volumes:
+  miner-data:
+    # explicit name so it never shifts with the project name
+    name: twitchdropsminer_miner-data

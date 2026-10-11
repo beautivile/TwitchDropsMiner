@@ -1,0 +1,21 @@
+# Web/container requirements.
+#
+# Deliberately does NOT include the desktop-only dependencies from the root
+# requirements.txt (pystray, PyGObject, pywin32) - the web build has no tray
+# icon and no desktop integration.
+#
+# NOTE: `utils.py` imports `tkinter` and `PIL.ImageTk` at module scope, and it
+# is imported by every core module. Only the import is needed (the functions
+# using them are never called headlessly), so the image installs the system
+# `tk` package - no X server or DISPLAY is required.
+
+# --- upstream miner core
+aiohttp>=3.9,<4.0
+Pillow
+truststore
+yarl
+
+# --- web layer
+fastapi>=0.110
+uvicorn[standard]>=0.27
+pydantic>=2.0

@@ -1,0 +1,102 @@
+# Deployment compose file for a Synology NAS (Container Manager / DSM 7).
+#
+# Differences from docker-compose.deploy.yml, both required by DSM:
+#
+#  * bind mount instead of a named volume - Container Manager's Project UI does
+#    not create Docker named volumes, so state goes in a folder you can see in
+#    File Station and include in Hyper Backup;
+#  * runs as root - the miner writes to /data, and a DSM bind-mounted folder is
+#    owned by a host uid that will not match the image's own user. Root sidesteps
+#    that entirely; set PUID/PGID if you would rather it drop privileges.
+#
+# ---------------------------------------------------------------------------
+# Setup
+#
+# 1. Create the folder (File Station, or SSH):
+#        /volume1/docker/twitchdropsminer/data
+#
+# 2. Find the owning ids over SSH:  id "$USER"
+#    Put them in a .env file next to this one (or edit the defaults below):
+#        PUID=1026
+#        PGID=100
+#
+# 3. Sign in to the private registry - pick ONE:
+#
+#    a) Container Manager UI (easiest):
+#         Registry -> Settings -> Add -> Docker Hub, tick "Use credentials",
+#         enter your Docker Hub username + an access token, then search for
+#         hypeview/twitchdropsminer and download the "latest" tag.
+#
+#    b) SSH:
+#         sudo docker login -u <dockerhub-user>
+#         sudo docker pull hypeview/twitchdropsminer:latest
+#
+#    Use a Docker Hub *access token* (hub.docker.com -> Account Settings ->
+#    Personal access tokens) rather than your password.
+#
+# 4. Container Manager -> Project -> Create, point it at this file, or over SSH:
+#        cd /volume1/docker/twitchdropsminer
+#        sudo docker compose -f docker-compose.synology.yml up -d
+#
+# 5. Open http://<nas-ip>:8080 and complete the device-code login once.
+#
+# NOTE: Container Manager cannot log in to a registry on its own. The image must
+# already be pulled (step 3) before the project will start.
+#
+# ARCHITECTURE: this file pins `platform: linux/arm64`, for ARM Synology models
+# (Realtek/Annapurna - `uname -m` reports aarch64). The image must therefore
+# include an arm64 build; publish one with:
+#     ./webapp/scripts/publish.sh --multi-arch
+# That pushes a single manifest covering amd64 and arm64. Without it the pull
+# fails with "no matching manifest for linux/arm64", and an amd64-only image
+# that does start dies immediately with "exec format error".
+#
+# On an INTEL Synology (uname -m reports x86_64), delete the `platform:` line
+# or change it to linux/amd64.
+# ---------------------------------------------------------------------------
+
+name: twitchdropsminer
+
+services:
+  twitch-drops-miner:
+    image: ${TDM_IMAGE:-hypeview/twitchdropsminer:latest}
+    container_name: twitch-drops-miner
+    restart: unless-stopped
+    # Pinned to arm64 for ARM Synology models (uname -m reports aarch64).
+    # This overrides Docker's automatic per-host selection, so the multi-arch
+    # tag always resolves to the arm64 image here. On an INTEL Synology this
+    # line must be removed (or set to linux/amd64), otherwise the pull fails
+    # with "no matching manifest for linux/amd64".
+    platform: linux/arm64
+    # DSM projects should never try to build - the image comes from the registry
+    pull_policy: missing
+    ports:
+      # LEFT = port on the NAS, RIGHT = port inside the container.
+      # Only ever change the LEFT number (DSM itself takes 5000/5001). The right
+      # side must stay 8080: that is what the app listens on and what the image's
+      # healthcheck probes, so mapping to anything else leaves the UI unreachable.
+      #   e.g. to serve it on 5800:   - "5800:8080"
+      - "${TDM_PORT:-8080}:8080"
+    volumes:
+      # bind mount: visible in File Station, backed up by Hyper Backup
+      - ${TDM_DATA:-/volume1/docker/twitchdropsminer/data}:/data
+    # NOTE: no `user:` here on purpose - the container runs as root.
+    # Root can always write the bind-mounted folder above, whatever uid DSM gave
+    # it, which removes the most common cause of a silent restart loop
+    # (PermissionError on /data/log.txt when PUID/PGID do not match the folder).
+    # To run unprivileged instead, set PUID/PGID in .env and the entrypoint will
+    # chown /data and drop to them:
+    #   environment:
+    #     PUID: "1026"
+    #     PGID: "100"
+    environment:
+      TDM_VERBOSE: "${TDM_VERBOSE:-0}"
+      TDM_LOG: "1"
+      TZ: "${TZ:-UTC}"
+    stop_grace_period: 30s
+    logging:
+      # keep DSM's log partition from filling up over months of uptime
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

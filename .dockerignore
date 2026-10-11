@@ -1,0 +1,16 @@
+.git
+.venv*
+env/
+data/
+webapp/__pycache__
+__pycache__
+*.pyc
+cache/
+log.txt
+cookies.jar
+settings.json
+lock.file
+dump.dat
+appimage/
+build/
+dist/

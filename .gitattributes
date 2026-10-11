@@ -1,0 +1,6 @@
+# Shell scripts must keep LF endings: a CRLF shebang makes Linux fail with
+# "exec ... : No such file or directory", which in a container surfaces as a
+# fast restart loop with almost no output.
+*.sh text eol=lf
+entrypoint.sh text eol=lf
+Dockerfile text eol=lf

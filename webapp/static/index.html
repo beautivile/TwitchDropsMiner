@@ -1,0 +1,1128 @@
+<title>Twitch Drops Miner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* ------------------------------------------------------------------
+   IBM Carbon Design System - Gray 100 (dark) theme tokens.
+   Values are Carbon's published token set; this page commits to the
+   dark theme deliberately, so every color is painted explicitly.
+   ------------------------------------------------------------------ */
+:root {
+  --background: #161616;
+  --layer-01: #262626;
+  --layer-02: #393939;
+  --layer-03: #525252;
+  --field-01: #393939;
+  --border-subtle: #393939;
+  --border-strong: #6f6f6f;
+  --text-primary: #f4f4f4;
+  --text-secondary: #c6c6c6;
+  --text-placeholder: #6f6f6f;
+  --text-on-color: #ffffff;
+  --link-primary: #78a9ff;
+  --interactive: #0f62fe;
+  --button-primary: #0f62fe;
+  --button-primary-hover: #0353e9;
+  --button-secondary: #6f6f6f;
+  --button-secondary-hover: #606060;
+  --button-danger: #da1e28;
+  --button-danger-hover: #ba1b23;
+  --support-success: #42be65;
+  --support-warning: #f1c21b;
+  --support-error: #fa4d56;
+  --support-info: #4589ff;
+  --focus: #ffffff;
+  --spacing-03: 8px;
+  --spacing-05: 16px;
+  --spacing-06: 24px;
+  --spacing-07: 32px;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--text-primary);
+  font-family: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.43;
+  letter-spacing: 0.16px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Carbon focus ring - 2px solid white inset */
+a:focus-visible, button:focus-visible, select:focus-visible,
+input:focus-visible, [tabindex]:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+/* ---------------------------------------------------------- UI shell */
+
+.shell {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-05);
+  height: 48px;
+  padding-inline: var(--spacing-05);
+  background: var(--layer-01);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.shell__brand {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.16px;
+  white-space: nowrap;
+}
+.shell__brand span { color: var(--text-secondary); font-weight: 400; }
+
+.shell__spacer { flex: 1; }
+
+.shell__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-05);
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+/* status dot */
+.dot {
+  display: inline-block;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--text-placeholder);
+  margin-right: 6px;
+  vertical-align: middle;
+}
+.dot--active  { background: var(--support-success); }
+.dot--idle    { background: var(--support-warning); }
+.dot--maint   { background: var(--support-info); }
+.dot--error   { background: var(--support-error); }
+.dot--pickaxe { background: var(--support-info); }
+
+/* ------------------------------------------------------------- tabs */
+
+.tabs {
+  display: flex;
+  background: var(--layer-01);
+  border-bottom: 1px solid var(--border-subtle);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tabs::-webkit-scrollbar { display: none; }
+
+.tab {
+  appearance: none;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 14px;
+  padding: 12px var(--spacing-05);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 70ms, color 70ms;
+}
+.tab:hover { background: var(--layer-02); color: var(--text-primary); }
+.tab[aria-selected="true"] {
+  color: var(--text-primary);
+  border-bottom-color: var(--interactive);
+  font-weight: 600;
+}
+
+/* ------------------------------------------------------------- main */
+
+main {
+  padding: var(--spacing-06) var(--spacing-05);
+  max-width: 1600px;
+  margin: 0 auto;
+  /* fill the viewport below the 48px shell + 41px tab bar */
+  min-height: calc(100vh - 89px);
+}
+.panel[hidden] { display: none !important; }
+
+.grid {
+  display: grid;
+  gap: var(--spacing-05);
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
+/* Carbon tiles are square-cornered by design */
+.tile {
+  background: var(--layer-01);
+  padding: var(--spacing-05);
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.tile__label {
+  font-size: 12px;
+  letter-spacing: 0.32px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  margin-bottom: var(--spacing-03);
+}
+
+h2 {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0 0 var(--spacing-05);
+  letter-spacing: 0;
+}
+
+/* ------------------------------------------------------- login notice */
+
+.notification {
+  display: flex;
+  gap: var(--spacing-05);
+  background: var(--layer-01);
+  border-left: 3px solid var(--support-info);
+  padding: var(--spacing-05);
+  margin-bottom: var(--spacing-05);
+  flex-wrap: wrap;
+  align-items: center;
+}
+.notification__body { flex: 1 1 260px; min-width: 0; }
+.notification__title { font-weight: 600; margin-bottom: 4px; }
+.notification__text { color: var(--text-secondary); font-size: 13px; }
+
+.code {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 28px;
+  font-weight: 500;
+  letter-spacing: 6px;
+  background: var(--background);
+  border: 1px solid var(--border-strong);
+  padding: 10px var(--spacing-05);
+  display: inline-block;
+  margin-block: var(--spacing-03);
+  user-select: all;
+}
+
+/* ---------------------------------------------------------- buttons */
+
+.btn {
+  appearance: none;
+  border: none;
+  font-family: inherit;
+  font-size: 14px;
+  letter-spacing: 0.16px;
+  padding: 11px var(--spacing-05);
+  min-height: 40px;
+  cursor: pointer;
+  color: var(--text-on-color);
+  background: var(--button-primary);
+  transition: background 70ms;
+  white-space: nowrap;
+}
+.btn:hover { background: var(--button-primary-hover); }
+.btn--secondary { background: var(--button-secondary); }
+.btn--secondary:hover { background: var(--button-secondary-hover); }
+.btn--danger { background: var(--button-danger); }
+.btn--danger:hover { background: var(--button-danger-hover); }
+.btn--ghost {
+  background: none;
+  color: var(--link-primary);
+  padding-inline: var(--spacing-03);
+}
+.btn--ghost:hover { background: var(--layer-02); }
+.btn:disabled { background: var(--layer-02); color: var(--text-placeholder); cursor: not-allowed; }
+.btn--sm { min-height: 32px; padding: 6px 12px; font-size: 12px; }
+
+.btn-row { display: flex; gap: 1px; flex-wrap: wrap; }
+
+/* --------------------------------------------------------- progress */
+
+.progress { margin-bottom: var(--spacing-05); }
+.progress__head {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--spacing-05);
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+.progress__value { font-family: "IBM Plex Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+.progress__track { height: 8px; background: var(--layer-02); overflow: hidden; }
+.progress__bar {
+  height: 100%;
+  background: var(--interactive);
+  transition: width 300ms ease-out;
+}
+.progress__bar--success { background: var(--support-success); }
+
+.drop-title { font-size: 20px; font-weight: 600; margin-bottom: 4px; text-wrap: balance; }
+.drop-sub { color: var(--text-secondary); font-size: 13px; margin-bottom: var(--spacing-05); }
+
+.countdown {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 40px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+/* idle placeholder reads as "off", not as a giant zero */
+.countdown--idle { font-size: 24px; color: var(--text-placeholder); }
+.countdown small { font-size: 13px; color: var(--text-secondary); font-weight: 400; }
+
+/* ----------------------------------------------------------- tables */
+
+.table-wrap { overflow-x: auto; background: var(--layer-01); }
+
+table { border-collapse: collapse; width: 100%; min-width: 620px; }
+
+th {
+  background: var(--layer-02);
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.16px;
+  padding: 12px var(--spacing-05);
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+}
+
+td {
+  padding: 11px var(--spacing-05);
+  border-top: 1px solid var(--border-subtle);
+  font-size: 13px;
+  vertical-align: middle;
+}
+
+tbody tr { cursor: pointer; transition: background 70ms; }
+tbody tr:hover { background: var(--layer-02); }
+tbody tr[aria-selected="true"] { background: var(--layer-02); box-shadow: inset 3px 0 0 var(--interactive); }
+tr.watching { box-shadow: inset 3px 0 0 var(--support-success); }
+tr.watching td:first-child { font-weight: 600; }
+
+.num { font-family: "IBM Plex Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+
+/* ------------------------------------------------------------- tags */
+
+.tag {
+  display: inline-block;
+  font-size: 12px;
+  line-height: 18px;
+  padding: 0 8px;
+  border-radius: 9px;
+  background: var(--layer-03);
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+.tag--online   { background: #044317; color: #a7f0ba; }
+.tag--pending  { background: #4a3800; color: #fdd13a; }
+.tag--offline  { background: var(--layer-02); color: var(--text-secondary); }
+.tag--active   { background: #0043ce; color: #d0e2ff; }
+.tag--upcoming { background: #4a3800; color: #fdd13a; }
+.tag--expired  { background: var(--layer-02); color: var(--text-secondary); }
+.tag--linked   { background: #044317; color: #a7f0ba; }
+.tag--unlinked { background: #6f2528; color: #ffd7d9; }
+
+/* -------------------------------------------------------- inventory */
+
+.campaign {
+  background: var(--layer-01);
+  padding: var(--spacing-05);
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  gap: var(--spacing-05);
+  align-items: start;
+  min-width: 0;
+}
+.campaign__art {
+  width: 72px;
+  aspect-ratio: 3 / 4;
+  max-width: 100%;
+  object-fit: cover;
+  background: var(--layer-02);
+}
+.campaign__body { min-width: 0; }
+.campaign__game { font-weight: 600; margin-bottom: 2px; overflow-wrap: anywhere; }
+.campaign__name {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: var(--spacing-03);
+  overflow-wrap: anywhere;
+}
+.campaign__tags { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+
+.drops { display: flex; flex-direction: column; gap: var(--spacing-03); }
+.drop-row { display: flex; align-items: center; gap: var(--spacing-03); font-size: 12px; }
+.drop-row__name { flex: 1; min-width: 0; overflow-wrap: anywhere; color: var(--text-secondary); }
+.drop-row__bar { width: 72px; height: 4px; background: var(--layer-02); flex: none; }
+.drop-row__fill { height: 100%; background: var(--interactive); }
+.drop-row--claimed .drop-row__fill { background: var(--support-success); }
+.drop-row--claimed .drop-row__name { color: var(--text-primary); }
+.drop-row__pct { width: 42px; text-align: right; flex: none; }
+
+/* --------------------------------------------------------- settings */
+
+.field { margin-bottom: var(--spacing-06); max-width: 480px; }
+.field__label {
+  display: block;
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: var(--spacing-03);
+}
+.field__help { font-size: 12px; color: var(--text-placeholder); margin-top: 6px; }
+
+select, input[type="text"], input[type="number"] {
+  width: 100%;
+  background: var(--field-01);
+  border: none;
+  border-bottom: 1px solid var(--border-strong);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 14px;
+  padding: 11px var(--spacing-05);
+  min-height: 40px;
+}
+select:focus, input:focus { outline: 2px solid var(--focus); outline-offset: -2px; }
+
+.checkbox { display: flex; align-items: flex-start; gap: 10px; margin-bottom: var(--spacing-05); cursor: pointer; }
+.checkbox input { width: 16px; height: 16px; margin: 2px 0 0; accent-color: var(--interactive); flex: none; }
+
+/* ordered priority list */
+.list { background: var(--layer-01); border: 1px solid var(--border-subtle); }
+.list__item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-03);
+  padding: var(--spacing-03) 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 13px;
+}
+.list__item:last-child { border-bottom: none; }
+.list__rank {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  color: var(--text-placeholder);
+  font-size: 12px;
+  width: 20px;
+  flex: none;
+}
+.list__name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.list__empty { padding: 12px; color: var(--text-placeholder); font-size: 13px; }
+
+.add-row { display: flex; gap: 1px; margin-top: var(--spacing-03); }
+.add-row select { flex: 1; }
+
+/* ---------------------------------------------------------- console */
+
+.console {
+  background: #000;
+  border: 1px solid var(--border-subtle);
+  padding: 12px var(--spacing-05);
+  height: 62vh;
+  min-height: 320px;
+  overflow-y: auto;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--text-secondary);
+}
+
+.empty {
+  padding: var(--spacing-07) var(--spacing-05);
+  text-align: center;
+  color: var(--text-placeholder);
+  background: var(--layer-01);
+  font-size: 13px;
+}
+
+.ws-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--spacing-05);
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 13px;
+}
+.ws-row:last-child { border-bottom: none; }
+
+.filters { display: flex; gap: var(--spacing-03); flex-wrap: wrap; margin-bottom: var(--spacing-05); align-items: center; }
+.filters select { width: auto; min-width: 160px; }
+
+@media (max-width: 640px) {
+  main { padding: var(--spacing-05) var(--spacing-05); }
+  .shell__meta .hide-sm { display: none; }
+  .countdown { font-size: 32px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+</style>
+
+<header class="shell">
+  <div class="shell__brand">Twitch Drops Miner <span id="version"></span></div>
+  <div class="shell__spacer"></div>
+  <div class="shell__meta">
+    <span><span class="dot" id="tray-dot"></span><span id="status-text">Connecting…</span></span>
+    <span class="hide-sm" id="user-text">—</span>
+  </div>
+</header>
+
+<nav class="tabs" role="tablist">
+  <button class="tab" role="tab" aria-selected="true" data-panel="dashboard">Dashboard</button>
+  <button class="tab" role="tab" aria-selected="false" data-panel="inventory">Inventory</button>
+  <button class="tab" role="tab" aria-selected="false" data-panel="settings">Settings</button>
+  <button class="tab" role="tab" aria-selected="false" data-panel="console">Console</button>
+</nav>
+
+<main>
+  <!-- ------------------------------------------------------ dashboard -->
+  <section class="panel" id="panel-dashboard">
+    <div id="login-notice"></div>
+
+    <div class="grid" style="margin-bottom:16px">
+      <div class="tile">
+        <div class="tile__label">Currently mining</div>
+        <div id="drop-block">
+          <div class="empty" style="padding:24px 0;background:none;text-align:left">
+            No drop is being mined right now.
+          </div>
+        </div>
+      </div>
+
+      <div class="tile">
+        <div class="tile__label">Next minute credited in</div>
+        <div class="countdown"><span id="countdown">--</span><small>s</small></div>
+        <div class="tile__label" style="margin-top:24px">Miner control</div>
+        <div class="btn-row">
+          <button class="btn btn--sm" id="btn-reload">Reload inventory</button>
+          <button class="btn btn--sm btn--secondary" id="btn-restart">Restart</button>
+          <button class="btn btn--sm btn--danger" id="btn-stop">Stop</button>
+        </div>
+        <div class="tile__label" style="margin-top:24px">Twitch account</div>
+        <div id="session-block"></div>
+        <div id="ws-block" style="margin-top:24px"></div>
+      </div>
+    </div>
+
+    <h2>Channels</h2>
+    <div id="channels-block"></div>
+  </section>
+
+  <!-- ------------------------------------------------------ inventory -->
+  <section class="panel" id="panel-inventory" hidden>
+    <div class="filters">
+      <label class="field__label" for="inv-filter" style="margin:0">Show</label>
+      <select id="inv-filter">
+        <option value="all">All campaigns</option>
+        <option value="active">Active</option>
+        <option value="upcoming">Upcoming</option>
+        <option value="expired">Expired</option>
+        <option value="unlinked">Needs account link</option>
+      </select>
+      <span class="tile__label" style="margin:0" id="inv-count"></span>
+    </div>
+    <div class="grid" id="inventory-block"></div>
+  </section>
+
+  <!-- ------------------------------------------------------- settings -->
+  <section class="panel" id="panel-settings" hidden>
+    <div class="grid" style="align-items:start">
+      <div class="tile">
+        <h2>Priority games</h2>
+        <p class="field__help" style="margin:-8px 0 16px">
+          Games at the top are mined first. Drag-free ordering: use the arrows.
+        </p>
+        <div class="list" id="priority-list"></div>
+        <div class="add-row">
+          <input type="text" id="priority-select" list="games-list"
+                 placeholder="Game name" aria-label="Game to prioritize" autocomplete="off">
+          <button class="btn" id="priority-add">Add</button>
+        </div>
+        <div class="field__help" id="priority-add-msg" style="margin-top:6px"></div>
+
+        <div class="field" style="margin-top:32px">
+          <label class="field__label" for="priority-mode">Priority mode</label>
+          <select id="priority-mode"></select>
+          <div class="field__help" id="priority-mode-help"></div>
+        </div>
+      </div>
+
+      <div class="tile">
+        <h2>Excluded games</h2>
+        <p class="field__help" style="margin:-8px 0 16px">
+          Excluded games are never mined, even if a campaign is available.
+        </p>
+        <div class="list" id="exclude-list"></div>
+        <div class="add-row">
+          <input type="text" id="exclude-select" list="games-list"
+                 placeholder="Game name" aria-label="Game to exclude" autocomplete="off">
+          <button class="btn" id="exclude-add">Add</button>
+        </div>
+        <div class="field__help" id="exclude-add-msg" style="margin-top:6px"></div>
+        <datalist id="games-list"></datalist>
+      </div>
+
+      <div class="tile">
+        <h2>Mining options</h2>
+        <label class="checkbox" for="opt-badges">
+          <input type="checkbox" id="opt-badges">
+          <span>Mine campaigns that only award badges or emotes
+            <span class="field__help">Off by default, since these rewards are cosmetic.</span>
+          </span>
+        </label>
+        <label class="checkbox" for="opt-drops-check">
+          <input type="checkbox" id="opt-drops-check">
+          <span>Prefer channels with drops enabled
+            <span class="field__help">Checks the drop availability of a channel before switching.</span>
+          </span>
+        </label>
+
+        <div class="field" style="margin-top:24px">
+          <label class="field__label" for="opt-quality">Stream quality</label>
+          <select id="opt-quality">
+            <option value="0">Lowest bandwidth</option>
+            <option value="1">Low (recommended)</option>
+            <option value="2">Medium</option>
+            <option value="3">High</option>
+            <option value="4">Source</option>
+          </select>
+          <div class="field__help">Only affects the playback request; drops credit the same either way.</div>
+        </div>
+
+        <div class="field">
+          <label class="field__label" for="opt-language">Interface language</label>
+          <select id="opt-language"></select>
+        </div>
+
+        <div class="field">
+          <label class="field__label" for="opt-proxy">Proxy URL</label>
+          <input type="text" id="opt-proxy" placeholder="http://user:pass@host:port">
+          <div class="field__help">Leave empty to connect directly. Applies after a restart.</div>
+        </div>
+
+        <button class="btn" id="settings-save">Save settings</button>
+        <span class="field__help" id="save-status" style="display:inline-block;margin-left:12px"></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- -------------------------------------------------------- console -->
+  <section class="panel" id="panel-console" hidden>
+    <div class="filters">
+      <h2 style="margin:0;flex:1">Output</h2>
+      <label class="checkbox" for="console-follow" style="margin:0">
+        <input type="checkbox" id="console-follow" checked>
+        <span>Follow new lines</span>
+      </label>
+    </div>
+    <div class="console" id="console"></div>
+  </section>
+</main>
+
+<script>
+"use strict";
+
+/* ------------------------------------------------------------ state */
+
+let S = null;               // latest snapshot from the server
+let ws = null;
+let reconnectDelay = 1000;
+let dirtySettings = false;  // don't clobber fields the user is editing
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => (
+  { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
+));
+
+/* -------------------------------------------------------- transport */
+
+function connect() {
+  const proto = location.protocol === "https:" ? "wss:" : "ws:";
+  ws = new WebSocket(`${proto}//${location.host}/ws`);
+
+  ws.onmessage = (ev) => {
+    S = JSON.parse(ev.data);
+    reconnectDelay = 1000;
+    render();
+  };
+  ws.onclose = () => {
+    $("status-text").textContent = "Disconnected — reconnecting…";
+    $("tray-dot").className = "dot dot--error";
+    setTimeout(connect, reconnectDelay);
+    reconnectDelay = Math.min(reconnectDelay * 2, 15000);
+  };
+  ws.onerror = () => ws.close();
+}
+
+async function post(path, body) {
+  let res;
+  try {
+    res = await fetch(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body ?? {}),
+    });
+  } catch (err) {
+    // network-level failure: server restarting, connection dropped
+    return { ok: false, error: "could not reach the miner - is it still running?" };
+  }
+  // an error response may be plain text (500) or FastAPI's {detail:[...]} (422),
+  // so never assume the body parses as our own JSON shape
+  const text = await res.text();
+  let data = null;
+  try { data = text ? JSON.parse(text) : null; } catch { /* not JSON */ }
+
+  if (!res.ok) {
+    return { ok: false, error: describeError(res.status, data, text) };
+  }
+  return data ?? { ok: true };
+}
+
+function describeError(status, data, text) {
+  // FastAPI validation errors name the offending field
+  if (data && Array.isArray(data.detail)) {
+    return data.detail
+      .map((d) => `${(d.loc || []).slice(1).join(".") || "value"}: ${d.msg}`)
+      .join("; ");
+  }
+  if (data && typeof data.detail === "string") return data.detail;
+  if (data && data.error) return data.error;
+  return `${status} ${text ? text.slice(0, 120) : "request failed"}`;
+}
+
+/* ------------------------------------------------------------- tabs */
+
+document.querySelectorAll(".tab").forEach((tab) => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach((t) => t.setAttribute("aria-selected", String(t === tab)));
+    document.querySelectorAll(".panel").forEach((p) => {
+      p.hidden = p.id !== `panel-${tab.dataset.panel}`;
+    });
+    if (tab.dataset.panel === "console") scrollConsole();
+  });
+});
+
+/* ----------------------------------------------------------- render */
+
+function render() {
+  if (!S) return;
+  renderHeader();
+  renderLogin();
+  renderDrop();
+  renderSession();
+  renderWebsockets();
+  renderChannels();
+  renderInventory();
+  renderSettings();
+  renderConsole();
+}
+
+function renderHeader() {
+  $("version").textContent = S.version ? `v${S.version}` : "";
+  $("status-text").textContent = S.status || "—";
+  $("tray-dot").className = `dot dot--${S.tray_state || "idle"}`;
+  const uid = S.login?.user_id;
+  $("user-text").textContent = uid ? `${S.login.status} · ${uid}` : (S.login?.status || "—");
+}
+
+function renderLogin() {
+  const p = S.auth_prompt;
+  const host = $("login-notice");
+  if (!p) { host.innerHTML = ""; return; }
+  // only rebuild when the code changes, so the button stays clickable
+  if (host.dataset.code === p.code) return;
+  host.dataset.code = p.code;
+  host.innerHTML = `
+    <div class="notification">
+      <div class="notification__body">
+        <div class="notification__title">Sign in to Twitch to start mining</div>
+        <div class="notification__text">
+          Open the activation page on any device and enter this code:
+        </div>
+        <div class="code">${esc(p.code)}</div>
+        <div class="notification__text">
+          <a href="${esc(p.url)}" target="_blank" rel="noopener" style="color:var(--link-primary)">
+            ${esc(p.url)}
+          </a>
+        </div>
+        <div class="notification__text" style="margin-top:8px;color:var(--text-placeholder)">
+          You only do this once — the login is saved and reused after restarts.
+        </div>
+      </div>
+      <button class="btn" id="btn-confirm">I entered the code</button>
+    </div>`;
+  $("btn-confirm").addEventListener("click", async (e) => {
+    e.target.disabled = true;
+    e.target.textContent = "Waiting for Twitch…";
+    await post("/api/login/confirm");
+  });
+}
+
+function renderDrop() {
+  const d = S.drop;
+  const cd = S.countdown || {};
+  const live = cd.running && cd.seconds > 0;
+  const cdEl = $("countdown");
+  cdEl.textContent = live ? cd.seconds : "--";
+  cdEl.parentElement.classList.toggle("countdown--idle", !live);
+  const host = $("drop-block");
+  if (!d) {
+    host.innerHTML = `<div class="empty" style="padding:24px 0;background:none;text-align:left">
+      No drop is being mined right now.</div>`;
+    return;
+  }
+  const dropPct = Math.round((d.progress || 0) * 100);
+  const campPct = Math.round((d.campaign_progress || 0) * 100);
+  host.innerHTML = `
+    <div class="drop-title">${esc(d.rewards)}</div>
+    <div class="drop-sub">${esc(d.campaign_game)} — ${esc(d.campaign_name)}</div>
+    <div class="progress">
+      <div class="progress__head">
+        <span>This drop</span>
+        <span class="progress__value">${d.current_minutes}/${d.required_minutes} min · ${dropPct}%</span>
+      </div>
+      <div class="progress__track">
+        <div class="progress__bar${dropPct >= 100 ? " progress__bar--success" : ""}" style="width:${dropPct}%"></div>
+      </div>
+    </div>
+    <div class="progress">
+      <div class="progress__head">
+        <span>Campaign</span>
+        <span class="progress__value">${d.claimed_drops}/${d.total_drops} drops · ${campPct}%</span>
+      </div>
+      <div class="progress__track">
+        <div class="progress__bar${campPct >= 100 ? " progress__bar--success" : ""}" style="width:${campPct}%"></div>
+      </div>
+    </div>`;
+}
+
+function renderSession() {
+  const uid = S.login?.user_id;
+  const saved = S.has_saved_session;
+  $("session-block").innerHTML = `
+    <div style="font-size:13px;color:var(--text-secondary);margin-bottom:8px">
+      ${uid
+        ? `Signed in · user ${uid}`
+        : saved
+          ? "Saved login found — reusing it, no code needed."
+          : "Not signed in yet."}
+    </div>
+    ${(uid || saved)
+      ? `<button class="btn btn--sm btn--secondary" id="btn-signout">Sign out</button>`
+      : ""}`;
+
+  const btn = $("btn-signout");
+  if (btn) {
+    btn.addEventListener("click", async () => {
+      if (!confirm("Forget the saved Twitch login? You'll need a new activation code.")) return;
+      btn.disabled = true;
+      btn.textContent = "Signing out…";
+      await post("/api/login/signout");
+    });
+  }
+}
+
+function renderWebsockets() {
+  const list = S.websockets || [];
+  $("ws-block").innerHTML = list.length
+    ? `<div class="tile__label">Websockets</div>` + list.map((w) => `
+        <div class="ws-row">
+          <span>#${w.idx} ${esc(w.status)}</span>
+          <span class="num">${w.topics} topics</span>
+        </div>`).join("")
+    : "";
+}
+
+function renderChannels() {
+  const rows = S.channels || [];
+  const host = $("channels-block");
+  if (!rows.length) {
+    host.innerHTML = `<div class="empty">No channels are being tracked yet.
+      They appear once the inventory has been fetched.</div>`;
+    return;
+  }
+  host.innerHTML = `
+    <div class="table-wrap"><table>
+      <thead><tr>
+        <th>Channel</th><th>Status</th><th>Game</th>
+        <th>Drops</th><th>Viewers</th><th>ACL</th><th></th>
+      </tr></thead>
+      <tbody>${rows.map((c) => `
+        <tr data-iid="${esc(c.iid)}"
+            class="${c.watching ? "watching" : ""}"
+            aria-selected="${S.selected_iid === c.iid}">
+          <td>${esc(c.name)}${c.watching ? " · mining" : ""}</td>
+          <td><span class="tag tag--${c.status}">${c.status}</span></td>
+          <td>${esc(c.game) || "—"}</td>
+          <td>${c.drops_enabled ? "Yes" : "No"}</td>
+          <td class="num">${c.viewers ?? "—"}</td>
+          <td>${c.acl_based ? "Yes" : "No"}</td>
+          <td><button class="btn btn--ghost btn--sm" data-switch="${esc(c.iid)}"
+              ${c.watching ? "disabled" : ""}>Switch</button></td>
+        </tr>`).join("")}
+      </tbody>
+    </table></div>`;
+
+  host.querySelectorAll("tr[data-iid]").forEach((tr) => {
+    tr.addEventListener("click", () => post("/api/channels/select", { iid: tr.dataset.iid }));
+  });
+  host.querySelectorAll("[data-switch]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      post("/api/channels/switch", { iid: btn.dataset.switch });
+    });
+  });
+}
+
+function renderInventory() {
+  const filter = $("inv-filter").value;
+  let items = S.campaigns || [];
+  if (filter === "unlinked") items = items.filter((c) => !c.linked);
+  else if (filter !== "all") items = items.filter((c) => c.status === filter);
+
+  $("inv-count").textContent = `${items.length} of ${(S.campaigns || []).length}`;
+  const host = $("inventory-block");
+  if (!items.length) {
+    host.innerHTML = `<div class="empty">No campaigns match this filter.</div>`;
+    return;
+  }
+  host.innerHTML = items.map((c) => `
+    <article class="campaign">
+      <img class="campaign__art" src="${esc(c.image_url)}" alt="" loading="lazy">
+      <div class="campaign__body">
+        <div class="campaign__game">${esc(c.game)}</div>
+        <div class="campaign__name">${esc(c.name)}</div>
+        <div class="campaign__tags">
+          <span class="tag tag--${c.status}">${c.status}</span>
+          <span class="tag ${c.linked ? "tag--linked" : "tag--unlinked"}">
+            ${c.linked ? "linked" : "not linked"}</span>
+          <span class="tag">${c.claimed_drops}/${c.total_drops} claimed</span>
+        </div>
+        <div class="drops">${c.drops.map((d) => {
+          const pct = Math.round((d.progress || 0) * 100);
+          return `<div class="drop-row${d.is_claimed ? " drop-row--claimed" : ""}">
+            <span class="drop-row__name">${d.is_claimed ? "✓ " : ""}${esc(d.rewards)}</span>
+            <span class="drop-row__bar"><span class="drop-row__fill" style="width:${pct}%"></span></span>
+            <span class="drop-row__pct num">${pct}%</span>
+          </div>`;
+        }).join("")}</div>
+        ${c.linked ? "" : `<div style="margin-top:12px">
+          <a class="btn btn--ghost btn--sm" href="${esc(c.link_url)}" target="_blank" rel="noopener">
+            Link account →</a></div>`}
+      </div>
+    </article>`).join("");
+}
+
+$("inv-filter").addEventListener("change", renderInventory);
+
+/* --------------------------------------------------------- settings */
+
+const MODE_HELP = {
+  PRIORITY_ONLY: "Only games on the priority list are mined.",
+  ENDING_SOONEST: "Priority games first, then campaigns closest to their end date.",
+  LOW_AVBL_FIRST: "Priority games first, then drops with the fewest channels available.",
+};
+
+function renderSettings() {
+  const s = S.settings || {};
+  if (!s.priority_modes) return;
+
+  // priority ordering
+  const plist = $("priority-list");
+  plist.innerHTML = (s.priority || []).length
+    ? s.priority.map((g, i) => `
+        <div class="list__item">
+          <span class="list__rank">${i + 1}</span>
+          <span class="list__name">${esc(g)}</span>
+          <button class="btn btn--ghost btn--sm" data-move="${i}" data-dir="-1"
+            ${i === 0 ? "disabled" : ""} aria-label="Move up">↑</button>
+          <button class="btn btn--ghost btn--sm" data-move="${i}" data-dir="1"
+            ${i === s.priority.length - 1 ? "disabled" : ""} aria-label="Move down">↓</button>
+          <button class="btn btn--ghost btn--sm" data-del-priority="${i}" aria-label="Remove">✕</button>
+        </div>`).join("")
+    : `<div class="list__empty">No priority games yet.</div>`;
+
+  plist.querySelectorAll("[data-move]").forEach((b) => b.addEventListener("click", () => {
+    const i = +b.dataset.move, dir = +b.dataset.dir;
+    const arr = [...s.priority];
+    [arr[i], arr[i + dir]] = [arr[i + dir], arr[i]];
+    save({ priority: arr });
+  }));
+  plist.querySelectorAll("[data-del-priority]").forEach((b) => b.addEventListener("click", () => {
+    const arr = [...s.priority];
+    arr.splice(+b.dataset.delPriority, 1);
+    save({ priority: arr });
+  }));
+
+  // exclusions
+  const elist = $("exclude-list");
+  elist.innerHTML = (s.exclude || []).length
+    ? s.exclude.map((g) => `
+        <div class="list__item">
+          <span class="list__name">${esc(g)}</span>
+          <button class="btn btn--ghost btn--sm" data-del-exclude="${esc(g)}" aria-label="Remove">✕</button>
+        </div>`).join("")
+    : `<div class="list__empty">No excluded games.</div>`;
+  elist.querySelectorAll("[data-del-exclude]").forEach((b) => b.addEventListener("click", () => {
+    save({ exclude: (s.exclude || []).filter((g) => g !== b.dataset.delExclude) });
+  }));
+
+  // suggestions come from the games the miner has seen; typing a name that
+  // isn't listed yet still works, which matters before the first login
+  const games = S.games || [];
+  const dl = $("games-list");
+  const wanted = games.join("|");
+  if (dl.dataset.games !== wanted) {
+    dl.dataset.games = wanted;
+    dl.innerHTML = games.map((g) => `<option value="${esc(g)}"></option>`).join("");
+  }
+  $("priority-add-msg").textContent = games.length
+    ? ""
+    : "Type a game name — the list fills in once campaigns load.";
+  $("exclude-add-msg").textContent = $("priority-add-msg").textContent;
+
+  // mode + options
+  const mode = $("priority-mode");
+  if (mode.options.length !== s.priority_modes.length) {
+    mode.innerHTML = s.priority_modes.map((m) => `<option value="${m}">${m.replace(/_/g, " ")}</option>`).join("");
+  }
+  mode.value = s.priority_mode;
+  $("priority-mode-help").textContent = MODE_HELP[s.priority_mode] || "";
+
+  // don't overwrite the option controls while they are being edited
+  if (!dirtySettings) {
+    $("opt-badges").checked = !!s.enable_badges_emotes;
+    $("opt-drops-check").checked = !!s.available_drops_check;
+    $("opt-quality").value = String(s.connection_quality ?? 1);
+    $("opt-proxy").value = s.proxy && s.proxy !== "" ? s.proxy : "";
+  }
+
+  const lang = $("opt-language");
+  if (!lang.options.length && s.language) {
+    lang.innerHTML = `<option>${esc(s.language)}</option>`;
+    fetch("/api/languages").then((r) => r.json()).then((d) => {
+      lang.innerHTML = d.languages.map((l) => `<option value="${esc(l)}">${esc(l)}</option>`).join("");
+      lang.value = s.language;
+    }).catch(() => {});
+  }
+}
+
+async function save(patch, statusEl) {
+  const res = await post("/api/settings", patch);
+  dirtySettings = false;
+  if (statusEl) {
+    statusEl.textContent = res.ok ? "Saved" : `Could not save: ${res.error || "unknown error"}`;
+    setTimeout(() => { statusEl.textContent = ""; }, 4000);
+  }
+  return res;
+}
+
+async function addGame(kind) {
+  const input = $(`${kind}-select`);
+  const msg = $(`${kind}-add-msg`);
+  const name = input.value.trim();
+  const current = (S.settings?.[kind === "priority" ? "priority" : "exclude"]) || [];
+
+  if (!name) {
+    msg.textContent = "Enter a game name first.";
+    input.focus();
+    return;
+  }
+  // compare case-insensitively, but store what the user typed
+  if (current.some((g) => g.toLowerCase() === name.toLowerCase())) {
+    msg.textContent = `"${name}" is already on the list.`;
+    return;
+  }
+
+  msg.textContent = "Saving…";
+  const patch = kind === "priority"
+    ? { priority: [...current, name] }
+    : { exclude: [...current, name] };
+  const res = await save(patch);
+
+  if (res.ok) {
+    input.value = "";
+    msg.textContent = `Added "${name}".`;
+    setTimeout(() => { if (msg.textContent === `Added "${name}".`) msg.textContent = ""; }, 4000);
+  } else {
+    msg.textContent = `Could not add it — ${res.error}`;
+  }
+}
+
+$("priority-add").addEventListener("click", () => addGame("priority"));
+$("exclude-add").addEventListener("click", () => addGame("exclude"));
+
+// Enter in the field should add, not submit anything
+["priority", "exclude"].forEach((kind) => {
+  $(`${kind}-select`).addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); addGame(kind); }
+  });
+});
+$("priority-mode").addEventListener("change", (e) => save({ priority_mode: e.target.value }));
+
+// mark the form dirty so incoming snapshots don't overwrite in-progress edits
+["opt-badges", "opt-drops-check", "opt-quality", "opt-language", "opt-proxy"].forEach((id) => {
+  $(id).addEventListener("input", () => { dirtySettings = true; });
+});
+
+$("settings-save").addEventListener("click", () => {
+  const patch = {
+    enable_badges_emotes: $("opt-badges").checked,
+    available_drops_check: $("opt-drops-check").checked,
+    proxy: $("opt-proxy").value.trim(),
+  };
+  // only send these when they hold a real value - an empty select would
+  // serialize as NaN/"" and be rejected by the server
+  const quality = parseInt($("opt-quality").value, 10);
+  if (Number.isInteger(quality)) patch.connection_quality = quality;
+  const language = $("opt-language").value;
+  if (language) patch.language = language;
+
+  save(patch, $("save-status"));
+});
+
+/* ---------------------------------------------------------- console */
+
+function renderConsole() {
+  const el = $("console");
+  const lines = (S.console || []).join("\n");
+  if (el.dataset.lines === String((S.console || []).length) && el.textContent === lines) return;
+  el.dataset.lines = String((S.console || []).length);
+  el.textContent = lines || "Waiting for output…";
+  scrollConsole();
+}
+
+function scrollConsole() {
+  if ($("console-follow").checked) {
+    const el = $("console");
+    el.scrollTop = el.scrollHeight;
+  }
+}
+
+/* ---------------------------------------------------------- control */
+
+$("btn-reload").addEventListener("click", (e) => flash(e.target, "/api/miner/reload", "Reloading…"));
+$("btn-restart").addEventListener("click", (e) => flash(e.target, "/api/miner/restart", "Restarting…"));
+$("btn-stop").addEventListener("click", (e) => flash(e.target, "/api/miner/stop", "Stopping…"));
+
+async function flash(btn, path, busyText) {
+  const original = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = busyText;
+  await post(path);
+  btn.disabled = false;
+  btn.textContent = original;
+}
+
+connect();
+</script>

@@ -1,0 +1,40 @@
+# Deployment compose file - pulls the published image instead of building.
+#
+# Copy just this one file to the target host (it needs nothing else from the
+# repository), then:
+#
+#   docker login                 # required: the repo is private
+#   docker compose -f docker-compose.deploy.yml up -d
+#
+# Open http://<host>:8080 and complete the device-code login once. The token is
+# stored in the named volume and reused on every later start, including after
+# `docker compose pull` to update.
+
+name: twitchdropsminer
+
+services:
+  twitch-drops-miner:
+    image: ${TDM_IMAGE:-hypeview/twitchdropsminer:latest}
+    container_name: twitch-drops-miner
+    restart: unless-stopped
+    ports:
+      # bind to localhost only if you front this with a reverse proxy:
+      #   - "127.0.0.1:8080:8080"
+      - "${TDM_PORT:-8080}:8080"
+    volumes:
+      # the Twitch login, settings, cache and logs live here - keep it
+      - miner-data:/data
+    # Runs as the image's built-in uid 1000, which owns /data. Only override
+    # `user:` when you bind-mount a host folder (see docker-compose.synology.yml)
+    # - a named volume is created root-owned, and a mismatched uid cannot write
+    # to it, so the container would exit with PermissionError on /data/log.txt.
+    environment:
+      TDM_VERBOSE: "${TDM_VERBOSE:-0}"
+      TDM_LOG: "1"
+      TZ: "${TZ:-UTC}"
+    stop_grace_period: 30s
+
+volumes:
+  miner-data:
+    # explicit name so it never shifts with the project or folder name
+    name: twitchdropsminer_miner-data
